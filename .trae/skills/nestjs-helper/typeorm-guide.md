@@ -11,17 +11,17 @@ npm install pg  # PostgreSQL驱动
 npm install sqlite3  # SQLite驱动
 ```
 
-## 配置文件示例
+## 项目级别配置
 
-### app.module.ts 配置
+### 基本配置
+
+在 `app.module.ts` 文件中配置 TypeORM：
 
 ```typescript
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { User } from './entities/user.entity';
-import { Role } from './entities/role.entity';
 
 @Module({
   imports: [
@@ -32,7 +32,7 @@ import { Role } from './entities/role.entity';
       username: 'root',
       password: 'password',
       database: 'nestjs_db',
-      entities: [User, Role], // 实体列表
+      entities: [__dirname + '/**/*.entity{.ts,.js}'], // 使用通配符路径自动加载实体
       synchronize: true, // 自动同步数据库结构（生产环境建议关闭）
       logging: true, // 启用SQL日志
       timezone: '+08:00', // 时区设置
@@ -41,7 +41,6 @@ import { Role } from './entities/role.entity';
         connectionLimit: 10, // 连接池大小
       },
     }),
-    TypeOrmModule.forFeature([User, Role]), // 注册实体到模块
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -49,7 +48,9 @@ import { Role } from './entities/role.entity';
 export class AppModule {}
 ```
 
-### 环境变量配置
+### 环境变量集成
+
+使用 `@nestjs/config` 从环境变量读取配置：
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -62,15 +63,20 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        type: configService.get<'mysql' | 'postgres'>('DB_TYPE', 'mysql'),
-        host: configService.get('DB_HOST', 'localhost'),
-        port: configService.get<number>('DB_PORT', 3306),
-        username: configService.get('DB_USERNAME', 'root'),
-        password: configService.get('DB_PASSWORD', ''),
-        database: configService.get('DB_DATABASE', 'nestjs_db'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('DB_SYNCHRONIZE', false),
-        logging: configService.get('DB_LOGGING', false),
+        type: configService.get<'mysql' | 'postgres' | 'sqlite'>('DATABASE_TYPE', 'mysql'),
+        host: configService.get('DATABASE_HOST', 'localhost'),
+        port: configService.get<number>('DATABASE_PORT', 3306),
+        username: configService.get('DATABASE_USERNAME', 'root'),
+        password: configService.get('DATABASE_PASSWORD', ''),
+        database: configService.get('DATABASE_NAME', 'nestjs_db'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'], // 使用通配符路径自动加载实体
+        synchronize: configService.get('DATABASE_SYNCHRONIZE', false),
+        logging: configService.get('DATABASE_LOGGING', false),
+        timezone: configService.get('DATABASE_TIMEZONE', '+08:00'),
+        charset: configService.get('DATABASE_CHARSET', 'utf8mb4'),
+        extra: {
+          connectionLimit: configService.get('DATABASE_CONNECTION_LIMIT', 10),
+        },
       }),
     }),
   ],
@@ -80,7 +86,13 @@ export class AppModule {}
 
 ### 多数据源配置
 
+配置多个数据源：
+
 ```typescript
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
 @Module({
   imports: [
     TypeOrmModule.forRootAsync({
@@ -88,14 +100,15 @@ export class AppModule {}
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        type: 'mysql',
-        host: configService.get('DB_HOST'),
-        port: configService.get('DB_PORT'),
-        username: configService.get('DB_USERNAME'),
-        password: configService.get('DB_PASSWORD'),
-        database: configService.get('DB_DATABASE'),
-        entities: [User],
+        type: configService.get('DATABASE_TYPE', 'mysql'),
+        host: configService.get('DATABASE_HOST', 'localhost'),
+        port: configService.get('DATABASE_PORT', 3306),
+        username: configService.get('DATABASE_USERNAME', 'root'),
+        password: configService.get('DATABASE_PASSWORD', ''),
+        database: configService.get('DATABASE_NAME', 'nestjs_db'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'], // 使用通配符路径自动加载实体
         synchronize: false,
+        logging: configService.get('DATABASE_LOGGING', false),
       }),
     }),
     TypeOrmModule.forRootAsync({
@@ -103,14 +116,15 @@ export class AppModule {}
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('SECONDARY_DB_HOST'),
-        port: configService.get('SECONDARY_DB_PORT'),
-        username: configService.get('SECONDARY_DB_USERNAME'),
-        password: configService.get('SECONDARY_DB_PASSWORD'),
-        database: configService.get('SECONDARY_DB_DATABASE'),
-        entities: [Log],
+        type: configService.get('SECONDARY_DATABASE_TYPE', 'postgres'),
+        host: configService.get('SECONDARY_DATABASE_HOST', 'localhost'),
+        port: configService.get('SECONDARY_DATABASE_PORT', 5432),
+        username: configService.get('SECONDARY_DATABASE_USERNAME', 'postgres'),
+        password: configService.get('SECONDARY_DATABASE_PASSWORD', ''),
+        database: configService.get('SECONDARY_DATABASE_NAME', 'nestjs_secondary_db'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'], // 使用通配符路径自动加载实体
         synchronize: false,
+        logging: configService.get('DATABASE_LOGGING', false),
       }),
     }),
   ],
@@ -118,473 +132,62 @@ export class AppModule {}
 export class AppModule {}
 ```
 
-## 实体定义示例
-
-### 基础实体
-
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 50, unique: true })
-  username: string;
-
-  @Column({ type: 'varchar', length: 255 })
-  password: string;
-
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  email: string;
-
-  @Column({ type: 'int', default: 0 })
-  age: number;
-
-  @Column({ type: 'boolean', default: true })
-  isActive: boolean;
-
-  @CreateDateColumn({ type: 'timestamp' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ type: 'timestamp' })
-  updatedAt: Date;
-}
-```
-
-### 一对一关系
-
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm';
-
-@Entity('profiles')
-export class Profile {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 100 })
-  firstName: string;
-
-  @Column({ type: 'varchar', length: 100 })
-  lastName: string;
-
-  @Column({ type: 'text', nullable: true })
-  bio: string;
-
-  @OneToOne(() => User, (user) => user.profile)
-  @JoinColumn()
-  user: User;
-}
-
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 50, unique: true })
-  username: string;
-
-  @OneToOne(() => Profile, (profile) => profile.user, { cascade: true })
-  profile: Profile;
-}
-```
-
-### 一对多关系
-
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-
-@Entity('categories')
-export class Category {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 100 })
-  name: string;
-
-  @OneToMany(() => Product, (product) => product.category)
-  products: Product[];
-}
-
-@Entity('products')
-export class Product {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 200 })
-  name: string;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  price: number;
-
-  @ManyToOne(() => Category, (category) => category.products)
-  @JoinColumn({ name: 'categoryId' })
-  category: Category;
-}
-```
-
-### 多对多关系
-
-```typescript
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable } from 'typeorm';
-
-@Entity('roles')
-export class Role {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 50 })
-  name: string;
-
-  @ManyToMany(() => Permission, (permission) => permission.roles)
-  @JoinTable({
-    name: 'role_permissions',
-    joinColumn: { name: 'roleId', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'permissionId', referencedColumnName: 'id' }
-  })
-  permissions: Permission[];
-}
-
-@Entity('permissions')
-export class Permission {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column({ type: 'varchar', length: 100 })
-  name: string;
-
-  @ManyToMany(() => Role, (role) => role.permissions)
-  roles: Role[];
-}
-```
-
-### 使用装饰器的完整实体
-
-```typescript
-import { 
-  Entity, 
-  PrimaryGeneratedColumn, 
-  Column, 
-  CreateDateColumn, 
-  UpdateDateColumn,
-  VersionColumn,
-  Index,
-  Unique
-} from 'typeorm';
-
-@Entity('articles')
-@Unique(['slug'])
-@Index(['authorId', 'status'])
-export class Article {
-  @PrimaryGeneratedColumn('increment')
-  id: number;
-
-  @Column({ type: 'varchar', length: 200 })
-  title: string;
-
-  @Column({ type: 'varchar', length: 255, unique: true })
-  slug: string;
-
-  @Column({ type: 'text', nullable: true })
-  content: string;
-
-  @Column({ type: 'enum', enum: ['draft', 'published', 'archived'], default: 'draft' })
-  status: 'draft' | 'published' | 'archived';
-
-  @Column({ type: 'int', name: 'authorId' })
-  authorId: number;
-
-  @Column({ type: 'json', nullable: true })
-  metadata: Record<string, any>;
-
-  @Column({ type: 'timestamp', nullable: true })
-  publishedAt: Date;
-
-  @CreateDateColumn({ name: 'createdAt', type: 'timestamp' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ name: 'updatedAt', type: 'timestamp' })
-  updatedAt: Date;
-
-  @VersionColumn()
-  version: number;
-}
-```
-
-## Repository 使用示例
-
-### Service 中使用 Repository
-
-```typescript
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
-
-@Injectable()
-export class UserService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {}
-
-  async create(userData: Partial<User>): Promise<User> {
-    const user = this.userRepository.create(userData);
-    return await this.userRepository.save(user);
-  }
-
-  async findAll(): Promise<User[]> {
-    return await this.userRepository.find();
-  }
-
-  async findOne(id: number): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-    return user;
-  }
-
-  async findByUsername(username: string): Promise<User> {
-    return await this.userRepository.findOne({ where: { username } });
-  }
-
-  async update(id: number, userData: Partial<User>): Promise<User> {
-    await this.userRepository.update(id, userData);
-    return this.findOne(id);
-  }
-
-  async remove(id: number): Promise<void> {
-    const result = await this.userRepository.delete(id);
-    if (result.affected === 0) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-  }
-}
-```
-
-### 高级查询示例
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Between, In, MoreThan, LessThan } from 'typeorm';
-import { User } from './entities/user.entity';
-
-@Injectable()
-export class UserService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {}
-
-  // 分页查询
-  async paginate(page: number = 1, limit: number = 10): Promise<{ data: User[]; total: number }> {
-    const [data, total] = await this.userRepository.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
-    return { data, total };
-  }
-
-  // 模糊查询
-  async search(keyword: string): Promise<User[]> {
-    return await this.userRepository.find({
-      where: [
-        { username: Like(`%${keyword}%`) },
-        { email: Like(`%${keyword}%`) },
-      ],
-    });
-  }
-
-  // 范围查询
-  async findByAgeRange(minAge: number, maxAge: number): Promise<User[]> {
-    return await this.userRepository.find({
-      where: {
-        age: Between(minAge, maxAge),
-      },
-    });
-  }
-
-  // IN 查询
-  async findByIds(ids: number[]): Promise<User[]> {
-    return await this.userRepository.find({
-      where: { id: In(ids) },
-    });
-  }
-
-  // 比较查询
-  async findActiveUsers(): Promise<User[]> {
-    return await this.userRepository.find({
-      where: { isActive: true },
-    });
-  }
-
-  // 关联查询
-  async findWithProfile(userId: number): Promise<User> {
-    return await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['profile'],
-    });
-  }
-
-  // 多重关联查询
-  async findWithRelations(userId: number): Promise<User> {
-    return await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['profile', 'roles', 'roles.permissions'],
-    });
-  }
-
-  // 选择特定字段
-  async findSelectFields(): Promise<Partial<User>[]> {
-    return await this.userRepository.find({
-      select: ['id', 'username', 'email'],
-    });
-  }
-
-  // 排序和限制
-  async findTopUsers(limit: number): Promise<User[]> {
-    return await this.userRepository.find({
-      order: { createdAt: 'DESC' },
-      take: limit,
-    });
-  }
-}
-```
-
-### 使用 QueryBuilder
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
-
-@Injectable()
-export class UserService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {}
-
-  async findActiveUsersWithQueryBuilder(): Promise<User[]> {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.isActive = :isActive', { isActive: true })
-      .orderBy('user.createdAt', 'DESC')
-      .getMany();
-  }
-
-  async findUsersWithRole(roleName: string): Promise<User[]> {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.roles', 'role')
-      .where('role.name = :roleName', { roleName })
-      .getMany();
-  }
-
-  async countActiveUsers(): Promise<number> {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.isActive = :isActive', { isActive: true })
-      .getCount();
-  }
-
-  async findUsersWithPagination(page: number, limit: number): Promise<User[]> {
-    return await this.userRepository
-      .createQueryBuilder('user')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getMany();
-  }
-
-  async updateUserStatus(userId: number, isActive: boolean): Promise<void> {
-    await this.userRepository
-      .createQueryBuilder()
-      .update(User)
-      .set({ isActive })
-      .where('id = :id', { id: userId })
-      .execute();
-  }
-
-  async softDeleteUser(userId: number): Promise<void> {
-    await this.userRepository
-      .createQueryBuilder()
-      .softDelete()
-      .from(User)
-      .where('id = :id', { id: userId })
-      .execute();
-  }
-}
-```
-
-### 事务处理
-
-```typescript
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { User } from './entities/user.entity';
-import { Profile } from './entities/profile.entity';
-
-@Injectable()
-export class UserService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Profile)
-    private profileRepository: Repository<Profile>,
-    private dataSource: DataSource,
-  ) {}
-
-  async createUserWithProfile(userData: Partial<User>, profileData: Partial<Profile>): Promise<User> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
-    try {
-      const user = queryRunner.manager.create(User, userData);
-      const savedUser = await queryRunner.manager.save(user);
-
-      const profile = queryRunner.manager.create(Profile, {
-        ...profileData,
-        userId: savedUser.id,
-      });
-      await queryRunner.manager.save(profile);
-
-      await queryRunner.commitTransaction();
-      return savedUser;
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
-  }
-}
-```
-
 ## 迁移管理
 
-### 创建迁移
+### 配置迁移命令
 
-```bash
-npm run typeorm migration:generate -- -n CreateUserTable
+在 `package.json` 中添加迁移命令：
+
+```json
+{
+  "scripts": {
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
+    "migration:generate": "npm run typeorm -- migration:generate -d src/database/data-source.ts",
+    "migration:run": "npm run typeorm -- migration:run -d src/database/data-source.ts",
+    "migration:revert": "npm run typeorm -- migration:revert -d src/database/data-source.ts"
+  }
+}
 ```
 
-### 运行迁移
+### 创建数据源配置文件
 
-```bash
-npm run typeorm migration:run
+创建 `src/database/data-source.ts` 文件：
+
+```typescript
+import { DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import * as dotenv from 'dotenv';
+
+// 加载环境变量
+dotenv.config();
+
+const configService = new ConfigService();
+
+export const AppDataSource = new DataSource({
+  type: configService.get<'mysql' | 'postgres' | 'sqlite'>('DATABASE_TYPE', 'mysql'),
+  host: configService.get('DATABASE_HOST', 'localhost'),
+  port: configService.get<number>('DATABASE_PORT', 3306),
+  username: configService.get('DATABASE_USERNAME', 'root'),
+  password: configService.get('DATABASE_PASSWORD', ''),
+  database: configService.get('DATABASE_NAME', 'nestjs_db'),
+  entities: [__dirname + '/../**/*.entity{.ts,.js}'],
+  migrations: [__dirname + '/migrations/*{.ts,.js}'],
+  synchronize: false,
+  logging: configService.get('DATABASE_LOGGING', false),
+});
 ```
 
-### 回滚迁移
+### 迁移命令示例
 
 ```bash
-npm run typeorm migration:revert
+# 生成迁移文件
+npm run migration:generate -- -n CreateUsersTable
+
+# 运行迁移
+npm run migration:run
+
+# 回滚迁移
+npm run migration:revert
 ```
 
 ## 最佳实践
@@ -592,7 +195,74 @@ npm run typeorm migration:revert
 1. **生产环境关闭 synchronize**：在生产环境中应该使用迁移而不是自动同步
 2. **使用环境变量**：敏感信息如数据库密码应该使用环境变量
 3. **连接池配置**：根据应用负载合理配置连接池大小
-4. **索引优化**：为经常查询的字段添加索引
-5. **软删除**：考虑使用软删除而不是物理删除
-6. **DTO 验证**：使用 class-validator 对输入数据进行验证
-7. **错误处理**：妥善处理数据库操作中的异常
+4. **使用通配符路径**：使用 `__dirname + '/**/*.entity{.ts,.js}'` 自动加载实体
+5. **迁移管理**：使用 TypeORM 迁移功能管理数据库结构变更
+6. **错误处理**：妥善处理数据库操作中的异常
+7. **日志配置**：根据环境合理配置日志级别
+8. **时区设置**：正确设置数据库时区，避免时间处理问题
+
+## 数据库类型配置示例
+
+### MySQL 配置
+
+```typescript
+TypeOrmModule.forRoot({
+  type: 'mysql',
+  host: 'localhost',
+  port: 3306,
+  username: 'root',
+  password: 'password',
+  database: 'nestjs_db',
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
+  synchronize: false,
+  logging: true,
+  timezone: '+08:00',
+  charset: 'utf8mb4',
+  extra: {
+    connectionLimit: 10,
+  },
+});
+```
+
+### PostgreSQL 配置
+
+```typescript
+TypeOrmModule.forRoot({
+  type: 'postgres',
+  host: 'localhost',
+  port: 5432,
+  username: 'postgres',
+  password: 'postgres',
+  database: 'nestjs_db',
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
+  synchronize: false,
+  logging: true,
+  extra: {
+    max: 10,
+  },
+});
+```
+
+### SQLite 配置
+
+```typescript
+TypeOrmModule.forRoot({
+  type: 'sqlite',
+  database: 'nestjs.db',
+  entities: [__dirname + '/**/*.entity{.ts,.js}'],
+  synchronize: true,
+  logging: true,
+});
+```
+
+## 总结
+
+TypeORM 是 NestJS 中常用的 ORM 框架，通过本文档的配置指南，您可以：
+
+1. 快速配置 TypeORM 连接到不同类型的数据库
+2. 使用环境变量管理数据库配置
+3. 配置多数据源支持
+4. 使用迁移管理数据库结构变更
+5. 遵循 TypeORM 最佳实践
+
+通过使用通配符路径自动加载实体，您可以专注于业务逻辑的实现，而不需要手动管理实体配置。

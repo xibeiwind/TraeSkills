@@ -168,7 +168,11 @@ async function bootstrap() {
   );
 
   // 启用 CORS
-  app.enableCors();
+  // 详细配置请参考 CORS 配置指南
+  app.enableCors({
+    origin: ['http://localhost:3000', 'http://localhost:4200'],
+    credentials: true,
+  });
 
   await app.listen(process.env.PORT || 3000);
   console.log(`Application is running on: ${await app.getUrl()}`);
@@ -435,6 +439,7 @@ app.useGlobalPipes(
 - 查看项目中的详细文档
 - 访问 [NestJS 官方文档](https://docs.nestjs.com/)
 - 查看 [NestJS 中文文档](https://docs.nestjs.cn/)
+- 参考 [CORS 配置指南](./cors-config.md) 了解详细的跨域配置
 
 ---
 

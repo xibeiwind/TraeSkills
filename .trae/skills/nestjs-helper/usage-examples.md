@@ -1098,9 +1098,175 @@ async findUsersWithPagination(page: number = 1, limit: number = 10) {
 }
 ```
 
+## Swagger 配置示例
+
+### 示例 11: 基本 Swagger 配置
+
+**用户请求:**
+
+```
+为我的 NestJS 项目配置 Swagger API 文档
+```
+
+**Skill 响应:**
+
+```typescript
+// 1. 安装依赖
+npm install @nestjs/swagger swagger-ui-express
+
+// 2. 更新 main.ts 文件
+// src/main.ts
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // 全局前缀
+  app.setGlobalPrefix('api');
+
+  // 全局验证管道
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // Swagger 配置
+  const config = new DocumentBuilder()
+    .setTitle('API 文档')
+    .setDescription('应用程序 API 文档')
+    .setVersion('1.0')
+    .addTag('api')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
+  // 启用 CORS
+  app.enableCors();
+
+  await app.listen(process.env.PORT || 3000);
+  console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`Swagger documentation is available at: ${await app.getUrl()}/api/docs`);
+}
+bootstrap();
+```
+
+### 示例 12: 带认证的 Swagger 配置
+
+**用户请求:**
+
+```
+为我的 NestJS 项目配置 Swagger，并添加 JWT 认证支持
+```
+
+**Skill 响应:**
+
+```typescript
+// 1. 安装依赖
+npm install @nestjs/swagger swagger-ui-express
+
+// 2. 更新 main.ts 文件
+// src/main.ts
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+
+  // 全局前缀
+  app.setGlobalPrefix('api');
+
+  // 全局验证管道
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // Swagger 配置（带认证）
+  const config = new DocumentBuilder()
+    .setTitle('API 文档')
+    .setDescription('应用程序 API 文档')
+    .setVersion('1.0')
+    .addTag('api')
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      name: 'JWT',
+      description: '输入您的 JWT 令牌',
+      in: 'header',
+    }, 'access-token')
+    .addSecurityRequirements('access-token')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  
+  // Swagger UI 选项
+  const options = {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  };
+
+  SwaggerModule.setup('api/docs', app, document, options);
+
+  // 启用 CORS
+  app.enableCors();
+
+  await app.listen(process.env.PORT || 3000);
+  console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`Swagger documentation is available at: ${await app.getUrl()}/api/docs`);
+}
+bootstrap();
+
+// 3. 在控制器中使用 Swagger 装饰器
+// src/users/users.controller.ts
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { User } from './entities/user.entity';
+
+@ApiTags('users')
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @ApiOperation({ summary: '创建用户' })
+  @ApiResponse({ status: 201, description: '用户创建成功', type: User })
+  @ApiResponse({ status: 400, description: '请求参数错误' })
+  create(@Body() createUserDto: CreateUserDto) {
+    return this.usersService.create(createUserDto);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取所有用户' })
+  @ApiResponse({ status: 200, description: '获取成功', type: [User] })
+  @ApiResponse({ status: 401, description: '未授权' })
+  findAll() {
+    return this.usersService.findAll();
+  }
+}
+```
+
 ## 部署配置示例
 
-### 示例 11: 创建 Docker 配置
+### 示例 13: 创建 Docker 配置
 
 **用户请求:**
 

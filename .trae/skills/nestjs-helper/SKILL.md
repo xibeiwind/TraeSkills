@@ -54,6 +54,13 @@ NestJS Helper 是一个专门为 NestJS 开发者设计的辅助 skill，提供�
 - 代码风格一致性检查
 - 架构设计评估
 
+### 7. Swagger 配置功能
+- 快速安装和配置 Swagger 依赖
+- 生成 Swagger 配置代码和模板
+- 支持自定义 Swagger 选项
+- 提供 Swagger 配置最佳实践指导
+- 自动扫描和文档化 API 端点
+
 ## 使用场景
 
 ### 场景一：创建新项目
@@ -86,6 +93,13 @@ NestJS Helper 是一个专门为 NestJS 开发者设计的辅助 skill，提供�
 - 识别潜在的安全风险和性能问题
 - 提供详细的审查报告和改进建议
 
+### 场景六：Swagger 配置
+当用户需要为 NestJS 项目配置 Swagger 时，该 skill 可以：
+- 自动安装必要的 Swagger 依赖
+- 生成符合最佳实践的 Swagger 配置代码
+- 提供自定义 Swagger 选项的指导
+- 帮助用户使用装饰器为 API 添加文档信息
+
 ## 调用时机
 
 ### 自动触发
@@ -100,6 +114,10 @@ NestJS Helper 是一个专门为 NestJS 开发者设计的辅助 skill，提供�
 - "生成一个 NestJS 模块"
 - "如何集成数据库到 NestJS 项目"
 - "优化我的 NestJS 应用性能"
+- "为我的 NestJS 项目配置 Swagger"
+- "添加 Swagger 文档到我的 NestJS 应用"
+- "如何使用 Swagger 装饰器"
+- "Swagger 配置最佳实践"
 
 ## 技术栈支持
 
